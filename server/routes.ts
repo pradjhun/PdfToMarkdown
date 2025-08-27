@@ -40,6 +40,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         settings: validatedSettings,
         markdownContent: null,
         errorMessage: null,
+        progressInfo: { currentStep: "Initializing", method: "pending" },
       });
 
       // Start conversion process
@@ -132,6 +133,24 @@ async function processConversion(conversionId: string, filePath: string, setting
     python.stderr.on("data", (data) => {
       error += data.toString();
       console.error(`Python stderr: ${data.toString()}`);
+      
+      // Parse progress information from stderr
+      const progressMatch = data.toString().match(/Using extraction method: (\w+)/);
+      const libraryMatch = data.toString().match(/(pdfplumber|PyPDF2)/);
+      const lengthMatch = data.toString().match(/Extracted text length: (\d+)/);
+      const markdownMatch = data.toString().match(/Generated markdown length: (\d+)/);
+      const stepMatch = data.toString().match(/(Starting|Trying|Using|Cleaning|Converting|Conversion completed)/);
+      
+      if (progressMatch || libraryMatch || lengthMatch || markdownMatch || stepMatch) {
+        const progressInfo: any = {};
+        if (stepMatch) progressInfo.currentStep = stepMatch[1];
+        if (libraryMatch) progressInfo.library = libraryMatch[1];
+        if (progressMatch) progressInfo.method = progressMatch[1];
+        if (lengthMatch) progressInfo.extractedTextLength = parseInt(lengthMatch[1]);
+        if (markdownMatch) progressInfo.markdownLength = parseInt(markdownMatch[1]);
+        
+        storage.updateConversion(conversionId, { progressInfo });
+      }
     });
 
     python.on("close", async (code) => {

@@ -50,6 +50,7 @@ export class MemStorage implements IStorage {
       settings: insertConversion.settings || null,
       markdownContent: insertConversion.markdownContent || null,
       errorMessage: insertConversion.errorMessage || null,
+      progressInfo: insertConversion.progressInfo || null,
       createdAt: now,
       updatedAt: now,
     };

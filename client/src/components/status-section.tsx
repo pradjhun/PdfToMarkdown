@@ -1,6 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { Conversion } from "@shared/schema";
 
+interface ProgressInfo {
+  currentStep?: string;
+  library?: string;
+  extractedTextLength?: number;
+  markdownLength?: number;
+  method?: string;
+}
+
 interface StatusSectionProps {
   conversionId: string;
 }
@@ -97,49 +105,76 @@ export default function StatusSection({ conversionId }: StatusSectionProps) {
         </div>
         
         {/* Status Messages */}
-        <div className="space-y-2">
+        {/* Detailed Progress Information */}
+        <div className="space-y-3">
           <div className="flex items-center space-x-2 text-sm">
             <div className="w-2 h-2 bg-chart-2 rounded-full"></div>
             <span className="text-muted-foreground">PDF loaded successfully</span>
           </div>
-          {conversion.status === "processing" || conversion.status === "completed" ? (
-            <div className="flex items-center space-x-2 text-sm">
-              <div className="w-2 h-2 bg-chart-2 rounded-full"></div>
-              <span className="text-muted-foreground">Extracting text content</span>
-            </div>
-          ) : (
-            <div className="flex items-center space-x-2 text-sm">
-              <div className="w-2 h-2 bg-border rounded-full"></div>
-              <span className="text-muted-foreground">Extracting text content</span>
+          
+          {/* Progress Info */}
+          {conversion.progressInfo && typeof conversion.progressInfo === 'object' && (
+            <div className="bg-muted/30 rounded-lg p-3 space-y-2">
+              <div className="text-xs font-medium text-card-foreground mb-2">Processing Details:</div>
+              
+              {(conversion.progressInfo as ProgressInfo).currentStep && (
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">Current Step:</span>
+                  <span className="font-medium text-foreground">{(conversion.progressInfo as ProgressInfo).currentStep}</span>
+                </div>
+              )}
+              
+              {(conversion.progressInfo as ProgressInfo).library && (
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">Using Library:</span>
+                  <span className="font-medium text-foreground">{(conversion.progressInfo as ProgressInfo).library}</span>
+                </div>
+              )}
+              
+              {(conversion.progressInfo as ProgressInfo).method && (
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">Extraction Method:</span>
+                  <span className="font-medium text-foreground">{(conversion.progressInfo as ProgressInfo).method}</span>
+                </div>
+              )}
+              
+              {(conversion.progressInfo as ProgressInfo).extractedTextLength && (
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">Text Extracted:</span>
+                  <span className="font-medium text-foreground">{(conversion.progressInfo as ProgressInfo).extractedTextLength?.toLocaleString()} chars</span>
+                </div>
+              )}
+              
+              {(conversion.progressInfo as ProgressInfo).markdownLength && (
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">Markdown Generated:</span>
+                  <span className="font-medium text-foreground">{(conversion.progressInfo as ProgressInfo).markdownLength?.toLocaleString()} chars</span>
+                </div>
+              )}
             </div>
           )}
-          {conversion.status === "completed" ? (
-            <div className="flex items-center space-x-2 text-sm">
-              <div className="w-2 h-2 bg-chart-2 rounded-full"></div>
-              <span className="text-muted-foreground">Converting to Markdown format</span>
-            </div>
-          ) : conversion.status === "processing" ? (
-            <div className="flex items-center space-x-2 text-sm">
-              <div className="w-2 h-2 bg-chart-3 rounded-full animate-pulse"></div>
-              <span className="text-muted-foreground">Converting to Markdown format</span>
-            </div>
-          ) : (
-            <div className="flex items-center space-x-2 text-sm">
-              <div className="w-2 h-2 bg-border rounded-full"></div>
-              <span className="text-muted-foreground">Converting to Markdown format</span>
-            </div>
-          )}
-          {conversion.status === "completed" ? (
-            <div className="flex items-center space-x-2 text-sm">
-              <div className="w-2 h-2 bg-chart-2 rounded-full"></div>
-              <span className="text-muted-foreground">Optimizing output</span>
-            </div>
-          ) : (
-            <div className="flex items-center space-x-2 text-sm">
-              <div className="w-2 h-2 bg-border rounded-full"></div>
-              <span className="text-muted-foreground">Optimizing output</span>
-            </div>
-          )}
+          
+          {/* Step Indicators */}
+          <div className="flex items-center space-x-2 text-sm">
+            <div className={`w-2 h-2 rounded-full ${conversion.status === "processing" || conversion.status === "completed" ? "bg-chart-2" : "bg-border"}`}></div>
+            <span className="text-muted-foreground">
+              Extracting text content
+              {(conversion.progressInfo as ProgressInfo)?.library && ` (${(conversion.progressInfo as ProgressInfo).library})`}
+            </span>
+          </div>
+          
+          <div className="flex items-center space-x-2 text-sm">
+            <div className={`w-2 h-2 rounded-full ${
+              conversion.status === "completed" ? "bg-chart-2" : 
+              conversion.status === "processing" ? "bg-chart-3 animate-pulse" : "bg-border"
+            }`}></div>
+            <span className="text-muted-foreground">Converting to Markdown format</span>
+          </div>
+          
+          <div className="flex items-center space-x-2 text-sm">
+            <div className={`w-2 h-2 rounded-full ${conversion.status === "completed" ? "bg-chart-2" : "bg-border"}`}></div>
+            <span className="text-muted-foreground">Optimizing output</span>
+          </div>
         </div>
 
         {conversion.status === "error" && (

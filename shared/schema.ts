@@ -11,6 +11,7 @@ export const conversions = pgTable("conversions", {
   settings: jsonb("settings"),
   markdownContent: text("markdown_content"),
   errorMessage: text("error_message"),
+  progressInfo: jsonb("progress_info"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -19,6 +20,14 @@ export const insertConversionSchema = createInsertSchema(conversions).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+});
+
+export const progressInfoSchema = z.object({
+  currentStep: z.string().optional(),
+  library: z.string().optional(),
+  extractedTextLength: z.number().optional(),
+  markdownLength: z.number().optional(),
+  method: z.string().optional(),
 });
 
 export type InsertConversion = z.infer<typeof insertConversionSchema>;
