@@ -9,6 +9,12 @@ interface ProgressInfo {
   extractedTextLength?: number;
   markdownLength?: number;
   method?: string;
+  imagesFound?: number;
+  imagesSaved?: number;
+  currentPage?: number;
+  lastSavedImage?: string;
+  imagesDirectory?: string;
+  imageExtractionEnabled?: boolean;
 }
 
 interface StatusSectionProps {
@@ -39,7 +45,7 @@ export default function StatusSection({ conversionId }: StatusSectionProps) {
     }
   }, [pollingData?.status, conversionId]);
 
-  if (isLoading || !conversion) {
+  if (isLoading || !currentConversion) {
     return (
       <section className="mb-8">
         <div className="bg-card rounded-lg border border-border p-6">
@@ -56,7 +62,7 @@ export default function StatusSection({ conversionId }: StatusSectionProps) {
   }
 
   const getStatusInfo = () => {
-    const progressInfo = currentConversion.progressInfo as ProgressInfo;
+    const progressInfo = currentConversion?.progressInfo as ProgressInfo;
     
     // Force 100% if conversion is completed regardless of cached status
     if (currentConversion.status === "completed" || progressInfo?.currentStep === "Completed") {
@@ -81,6 +87,7 @@ export default function StatusSection({ conversionId }: StatusSectionProps) {
         let progress = 20; // Base progress for starting
         if (progressInfo?.library) progress = 40; // Library detected
         if (progressInfo?.extractedTextLength) progress = 60; // Text extracted
+        if (progressInfo?.imagesSaved !== undefined && progressInfo.imagesSaved > 0) progress = 70; // Images extracted
         if (progressInfo?.markdownLength) progress = 85; // Markdown generated
         if (progressInfo?.currentStep === "Conversion completed") progress = 95; // Almost done
         
@@ -184,6 +191,33 @@ export default function StatusSection({ conversionId }: StatusSectionProps) {
                   <span className="font-medium text-foreground">{(currentConversion.progressInfo as ProgressInfo).markdownLength?.toLocaleString()} chars</span>
                 </div>
               )}
+              
+              {(currentConversion.progressInfo as ProgressInfo).imageExtractionEnabled && (
+                <div className="border-t border-muted-foreground/20 pt-2 mt-2">
+                  <div className="text-xs font-medium text-card-foreground mb-1">Image Extraction:</div>
+                  
+                  {(currentConversion.progressInfo as ProgressInfo).imagesFound !== undefined && (
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">Images Found:</span>
+                      <span className="font-medium text-foreground">{(currentConversion.progressInfo as ProgressInfo).imagesFound}</span>
+                    </div>
+                  )}
+                  
+                  {(currentConversion.progressInfo as ProgressInfo).imagesSaved !== undefined && (
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">Images Saved:</span>
+                      <span className="font-medium text-foreground">{(currentConversion.progressInfo as ProgressInfo).imagesSaved}</span>
+                    </div>
+                  )}
+                  
+                  {(currentConversion.progressInfo as ProgressInfo).currentPage && (
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">Current Page:</span>
+                      <span className="font-medium text-foreground">{(currentConversion.progressInfo as ProgressInfo).currentPage}</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
           
@@ -195,6 +229,21 @@ export default function StatusSection({ conversionId }: StatusSectionProps) {
               {(conversion.progressInfo as ProgressInfo)?.library && ` (${(conversion.progressInfo as ProgressInfo).library})`}
             </span>
           </div>
+          
+          {/* Image extraction step - only show if enabled */}
+          {(conversion.progressInfo as ProgressInfo)?.imageExtractionEnabled && (
+            <div className="flex items-center space-x-2 text-sm">
+              <div className={`w-2 h-2 rounded-full ${
+                (conversion.progressInfo as ProgressInfo)?.imagesSaved !== undefined && (conversion.progressInfo as ProgressInfo).imagesSaved! > 0 ? "bg-chart-2" : 
+                conversion.status === "processing" ? "bg-chart-3 animate-pulse" : "bg-border"
+              }`}></div>
+              <span className="text-muted-foreground">
+                Extracting images
+                {(conversion.progressInfo as ProgressInfo)?.imagesSaved !== undefined && 
+                 ` (${(conversion.progressInfo as ProgressInfo).imagesSaved} saved)`}
+              </span>
+            </div>
+          )}
           
           <div className="flex items-center space-x-2 text-sm">
             <div className={`w-2 h-2 rounded-full ${

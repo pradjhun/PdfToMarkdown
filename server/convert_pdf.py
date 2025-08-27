@@ -5,6 +5,8 @@ import os
 import PyPDF2
 import pdfplumber
 import re
+from PIL import Image
+import io
 from typing import Dict, Any, List, Optional
 
 def extract_text_pypdf2(pdf_path: str) -> str:
@@ -22,15 +24,33 @@ def extract_text_pypdf2(pdf_path: str) -> str:
         raise Exception(f"PyPDF2 extraction failed: {str(e)}")
     return text
 
-def extract_text_pdfplumber(pdf_path: str) -> str:
-    """Extract text and tables using pdfplumber - better for complex layouts."""
+def extract_text_pdfplumber(pdf_path: str, settings: Dict[str, Any] = None) -> str:
+    """Extract text, tables and images using pdfplumber - better for complex layouts."""
     text = ""
+    settings = settings or {}
+    extract_images = settings.get('extractImages', False)
+    
+    # Create images directory if extracting images
+    images_dir = None
+    if extract_images:
+        images_dir = os.path.join(os.path.dirname(pdf_path), 'extracted_images')
+        os.makedirs(images_dir, exist_ok=True)
+        print(f"Created images directory: {images_dir}", file=sys.stderr)
+    
     try:
         with pdfplumber.open(pdf_path) as pdf:
             for page_num, page in enumerate(pdf.pages):
                 text += f"\n<!-- Page {page_num + 1} -->\n"
                 
-                # Extract tables first
+                # Extract images if enabled
+                if extract_images:
+                    page_images = extract_images_from_page(page, page_num, images_dir)
+                    for img_path in page_images:
+                        # Add image reference to markdown
+                        img_name = os.path.basename(img_path)
+                        text += f"\n![Image from page {page_num + 1}]({img_path})\n\n"
+                
+                # Extract tables
                 tables = page.extract_tables()
                 if tables:
                     print(f"Extracting {len(tables)} table(s) from page {page_num + 1}", file=sys.stderr)
@@ -40,7 +60,7 @@ def extract_text_pdfplumber(pdf_path: str) -> str:
                             text += f"\n{markdown_table}\n\n"
                             print(f"Converted table {table_num + 1} with {len(table)} rows and {len(table[0]) if table else 0} columns", file=sys.stderr)
                 
-                # Extract remaining text (excluding table areas)
+                # Extract text content
                 page_text = page.extract_text()
                 if page_text:
                     text += page_text + "\n"
@@ -48,6 +68,38 @@ def extract_text_pdfplumber(pdf_path: str) -> str:
     except Exception as e:
         raise Exception(f"pdfplumber extraction failed: {str(e)}")
     return text
+
+def extract_images_from_page(page, page_num: int, images_dir: str) -> List[str]:
+    """Extract images from a PDF page and save them to disk."""
+    extracted_images = []
+    
+    try:
+        # Get images from the page
+        if hasattr(page, 'images'):
+            images = page.images
+            print(f"Found {len(images)} image(s) on page {page_num + 1}", file=sys.stderr)
+            
+            for img_num, img in enumerate(images):
+                try:
+                    # Extract image object
+                    image_obj = page.within_bbox(img['bbox']).to_image()
+                    
+                    # Save image
+                    img_filename = f"page_{page_num + 1}_image_{img_num + 1}.png"
+                    img_path = os.path.join(images_dir, img_filename)
+                    
+                    # Convert and save image
+                    image_obj.save(img_path, format='PNG')
+                    extracted_images.append(img_path)
+                    print(f"Saved image: {img_filename}", file=sys.stderr)
+                    
+                except Exception as e:
+                    print(f"Failed to extract image {img_num + 1} from page {page_num + 1}: {e}", file=sys.stderr)
+    
+    except Exception as e:
+        print(f"Error extracting images from page {page_num + 1}: {e}", file=sys.stderr)
+    
+    return extracted_images
 
 def convert_table_to_markdown(table: List[List[Optional[str]]]) -> str:
     """Convert a table array to markdown table format."""
@@ -224,7 +276,7 @@ def main():
             # Try pdfplumber first, fallback to PyPDF2
             try:
                 print("Trying pdfplumber extraction...", file=sys.stderr)
-                text = extract_text_pdfplumber(pdf_path)
+                text = extract_text_pdfplumber(pdf_path, settings)
                 if not text.strip():
                     print("pdfplumber returned empty, trying PyPDF2...", file=sys.stderr)
                     text = extract_text_pypdf2(pdf_path)

@@ -169,7 +169,10 @@ async function processConversion(conversionId: string, filePath: string, setting
       const libraryMatch = data.toString().match(/(pdfplumber|PyPDF2)/);
       const lengthMatch = data.toString().match(/Extracted text length: (\d+)/);
       const markdownMatch = data.toString().match(/Generated markdown length: (\d+)/);
-      const stepMatch = data.toString().match(/(Starting|Trying|Using|Cleaning|Converting|Conversion completed)/);
+      const stepMatch = data.toString().match(/(Starting|Trying|Using|Cleaning|Converting|Conversion completed)/);      
+      const imageMatch = data.toString().match(/Found (\d+) image\(s\) on page (\d+)/);      
+      const savedImageMatch = data.toString().match(/Saved image: (.+)/);      
+      const imagesExtractedMatch = data.toString().match(/Created images directory: (.+)/);
       
       if (progressMatch || libraryMatch || lengthMatch || markdownMatch || stepMatch) {
         try {
@@ -183,6 +186,18 @@ async function processConversion(conversionId: string, filePath: string, setting
           if (progressMatch) progressInfo.method = progressMatch[1];
           if (lengthMatch) progressInfo.extractedTextLength = parseInt(lengthMatch[1]);
           if (markdownMatch) progressInfo.markdownLength = parseInt(markdownMatch[1]);
+          if (imageMatch) {
+            progressInfo.imagesFound = (progressInfo.imagesFound || 0) + parseInt(imageMatch[1]);
+            progressInfo.currentPage = parseInt(imageMatch[2]);
+          }
+          if (savedImageMatch) {
+            progressInfo.imagesSaved = (progressInfo.imagesSaved || 0) + 1;
+            progressInfo.lastSavedImage = savedImageMatch[1];
+          }
+          if (imagesExtractedMatch) {
+            progressInfo.imagesDirectory = imagesExtractedMatch[1];
+            progressInfo.imageExtractionEnabled = true;
+          }
           
           console.log(`Updating progress for ${conversionId}:`, progressInfo);
           await storage.updateConversion(conversionId, { progressInfo });

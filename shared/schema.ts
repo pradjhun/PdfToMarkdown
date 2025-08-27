@@ -28,6 +28,12 @@ export const progressInfoSchema = z.object({
   extractedTextLength: z.number().optional(),
   markdownLength: z.number().optional(),
   method: z.string().optional(),
+  imagesFound: z.number().optional(),
+  imagesSaved: z.number().optional(),
+  currentPage: z.number().optional(),
+  lastSavedImage: z.string().optional(),
+  imagesDirectory: z.string().optional(),
+  imageExtractionEnabled: z.boolean().optional(),
 });
 
 export type InsertConversion = z.infer<typeof insertConversionSchema>;
