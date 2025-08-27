@@ -34,6 +34,8 @@ export default function StatusSection({ conversionId }: StatusSectionProps) {
   useEffect(() => {
     if (pollingData && (pollingData.status === "completed" || pollingData.status === "error")) {
       queryClient.invalidateQueries({ queryKey: ["/api/conversions", conversionId] });
+      // Force immediate refetch to ensure UI updates
+      queryClient.refetchQueries({ queryKey: ["/api/conversions", conversionId] });
     }
   }, [pollingData?.status, conversionId]);
 
@@ -55,6 +57,16 @@ export default function StatusSection({ conversionId }: StatusSectionProps) {
 
   const getStatusInfo = () => {
     const progressInfo = currentConversion.progressInfo as ProgressInfo;
+    
+    // Force 100% if conversion is completed regardless of cached status
+    if (currentConversion.status === "completed" || progressInfo?.currentStep === "Completed") {
+      return {
+        color: "chart-2",
+        text: "Completed",
+        progress: 100,
+        message: "Conversion successful",
+      };
+    }
     
     switch (currentConversion.status) {
       case "pending":
@@ -78,19 +90,19 @@ export default function StatusSection({ conversionId }: StatusSectionProps) {
           progress,
           message: progressInfo?.currentStep || "Converting PDF to Markdown",
         };
-      case "completed":
-        return {
-          color: "chart-2",
-          text: "Completed",
-          progress: 100,
-          message: "Conversion successful",
-        };
       case "error":
         return {
           color: "destructive",
           text: "Error",
           progress: 0,
           message: currentConversion.errorMessage || "Conversion failed",
+        };
+      default:
+        return {
+          color: "chart-2",
+          text: "Completed",
+          progress: 100,
+          message: "Conversion successful",
         };
     }
   };
