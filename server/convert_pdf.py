@@ -81,20 +81,37 @@ def extract_images_from_page(page, page_num: int, images_dir: str) -> List[str]:
             
             for img_num, img in enumerate(images):
                 try:
-                    # Extract image object
-                    image_obj = page.within_bbox(img['bbox']).to_image()
-                    
-                    # Save image
+                    # Extract image using different methods based on available attributes
                     img_filename = f"page_{page_num + 1}_image_{img_num + 1}.png"
                     img_path = os.path.join(images_dir, img_filename)
                     
-                    # Convert and save image
-                    image_obj.save(img_path, format='PNG')
-                    extracted_images.append(img_path)
-                    print(f"Saved image: {img_filename}", file=sys.stderr)
+                    # Method 1: Try using bbox if available
+                    if 'bbox' in img:
+                        bbox = img['bbox']
+                        image_obj = page.within_bbox(bbox).to_image()
+                        image_obj.save(img_path, format='PNG')
+                        extracted_images.append(img_path)
+                        print(f"Saved image: {img_filename} (using bbox)", file=sys.stderr)
+                    
+                    # Method 2: Try using x0, y0, x1, y1 coordinates
+                    elif all(key in img for key in ['x0', 'y0', 'x1', 'y1']):
+                        bbox = (img['x0'], img['y0'], img['x1'], img['y1'])
+                        image_obj = page.within_bbox(bbox).to_image()
+                        image_obj.save(img_path, format='PNG')
+                        extracted_images.append(img_path)
+                        print(f"Saved image: {img_filename} (using coordinates)", file=sys.stderr)
+                    
+                    # Method 3: Try to extract full page image and crop
+                    else:
+                        # Get full page as image and try to extract based on available info
+                        page_image = page.to_image()
+                        page_image.save(img_path, format='PNG')
+                        extracted_images.append(img_path)
+                        print(f"Saved image: {img_filename} (full page fallback)", file=sys.stderr)
                     
                 except Exception as e:
                     print(f"Failed to extract image {img_num + 1} from page {page_num + 1}: {e}", file=sys.stderr)
+                    print(f"Image object keys: {list(img.keys()) if isinstance(img, dict) else 'Not a dict'}", file=sys.stderr)
     
     except Exception as e:
         print(f"Error extracting images from page {page_num + 1}: {e}", file=sys.stderr)
