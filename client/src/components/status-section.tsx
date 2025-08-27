@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Conversion } from "@shared/schema";
+import { queryClient } from "@/lib/queryClient";
 
 interface ProgressInfo {
   currentStep?: string;
@@ -23,6 +24,12 @@ export default function StatusSection({ conversionId }: StatusSectionProps) {
     queryKey: ["/api/conversions", conversionId, "poll"],
     refetchInterval: conversion?.status === "processing" ? 1000 : false,
     enabled: !!conversionId && conversion?.status === "processing",
+    onSuccess: (data) => {
+      // When polling detects a status change, refetch the main query
+      if (data?.status !== "processing") {
+        queryClient.invalidateQueries({ queryKey: ["/api/conversions", conversionId] });
+      }
+    },
   });
 
   if (isLoading || !conversion) {
