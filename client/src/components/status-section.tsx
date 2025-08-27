@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Conversion } from "@shared/schema";
 import { queryClient } from "@/lib/queryClient";
+import { useEffect } from "react";
 
 interface ProgressInfo {
   currentStep?: string;
@@ -20,17 +21,21 @@ export default function StatusSection({ conversionId }: StatusSectionProps) {
     enabled: !!conversionId,
   });
 
-  const { refetch } = useQuery<Conversion>({
+  const { data: pollingData } = useQuery<Conversion>({
     queryKey: ["/api/conversions", conversionId, "poll"],
     refetchInterval: conversion?.status === "processing" ? 1000 : false,
-    enabled: !!conversionId && conversion?.status === "processing",
-    onSuccess: (data) => {
-      // When polling detects a status change, refetch the main query
-      if (data?.status !== "processing") {
-        queryClient.invalidateQueries({ queryKey: ["/api/conversions", conversionId] });
-      }
-    },
+    enabled: !!conversionId && (conversion?.status === "processing" || conversion?.status === "pending"),
   });
+
+  // Use polling data if it's more recent than main query data
+  const currentConversion = pollingData || conversion;
+
+  // Refresh main query when polling detects completion
+  useEffect(() => {
+    if (pollingData && (pollingData.status === "completed" || pollingData.status === "error")) {
+      queryClient.invalidateQueries({ queryKey: ["/api/conversions", conversionId] });
+    }
+  }, [pollingData?.status, conversionId]);
 
   if (isLoading || !conversion) {
     return (
@@ -49,7 +54,9 @@ export default function StatusSection({ conversionId }: StatusSectionProps) {
   }
 
   const getStatusInfo = () => {
-    switch (conversion.status) {
+    const progressInfo = currentConversion.progressInfo as ProgressInfo;
+    
+    switch (currentConversion.status) {
       case "pending":
         return {
           color: "chart-3",
@@ -58,11 +65,18 @@ export default function StatusSection({ conversionId }: StatusSectionProps) {
           message: "Preparing for conversion",
         };
       case "processing":
+        // Calculate dynamic progress based on processing steps
+        let progress = 20; // Base progress for starting
+        if (progressInfo?.library) progress = 40; // Library detected
+        if (progressInfo?.extractedTextLength) progress = 60; // Text extracted
+        if (progressInfo?.markdownLength) progress = 85; // Markdown generated
+        if (progressInfo?.currentStep === "Conversion completed") progress = 95; // Almost done
+        
         return {
           color: "chart-3",
           text: "Processing...",
-          progress: 65,
-          message: "Converting PDF to Markdown",
+          progress,
+          message: progressInfo?.currentStep || "Converting PDF to Markdown",
         };
       case "completed":
         return {
@@ -76,7 +90,7 @@ export default function StatusSection({ conversionId }: StatusSectionProps) {
           color: "destructive",
           text: "Error",
           progress: 0,
-          message: conversion.errorMessage || "Conversion failed",
+          message: currentConversion.errorMessage || "Conversion failed",
         };
     }
   };
@@ -89,7 +103,7 @@ export default function StatusSection({ conversionId }: StatusSectionProps) {
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-card-foreground">Conversion Status</h3>
           <div className="flex items-center space-x-2">
-            <div className={`w-3 h-3 bg-${statusInfo.color} rounded-full ${conversion.status === "processing" ? "animate-pulse" : ""}`}></div>
+            <div className={`w-3 h-3 bg-${statusInfo.color} rounded-full ${currentConversion.status === "processing" ? "animate-pulse" : ""}`}></div>
             <span className={`text-sm font-medium text-${statusInfo.color}`} data-testid="text-status">
               {statusInfo.text}
             </span>
@@ -120,42 +134,42 @@ export default function StatusSection({ conversionId }: StatusSectionProps) {
           </div>
           
           {/* Progress Info */}
-          {conversion.progressInfo && typeof conversion.progressInfo === 'object' && (
+          {currentConversion.progressInfo && typeof currentConversion.progressInfo === 'object' && (
             <div className="bg-muted/30 rounded-lg p-3 space-y-2">
               <div className="text-xs font-medium text-card-foreground mb-2">Processing Details:</div>
               
-              {(conversion.progressInfo as ProgressInfo).currentStep && (
+              {(currentConversion.progressInfo as ProgressInfo).currentStep && (
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">Current Step:</span>
-                  <span className="font-medium text-foreground">{(conversion.progressInfo as ProgressInfo).currentStep}</span>
+                  <span className="font-medium text-foreground">{(currentConversion.progressInfo as ProgressInfo).currentStep}</span>
                 </div>
               )}
               
-              {(conversion.progressInfo as ProgressInfo).library && (
+              {(currentConversion.progressInfo as ProgressInfo).library && (
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">Using Library:</span>
-                  <span className="font-medium text-foreground">{(conversion.progressInfo as ProgressInfo).library}</span>
+                  <span className="font-medium text-foreground">{(currentConversion.progressInfo as ProgressInfo).library}</span>
                 </div>
               )}
               
-              {(conversion.progressInfo as ProgressInfo).method && (
+              {(currentConversion.progressInfo as ProgressInfo).method && (
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">Extraction Method:</span>
-                  <span className="font-medium text-foreground">{(conversion.progressInfo as ProgressInfo).method}</span>
+                  <span className="font-medium text-foreground">{(currentConversion.progressInfo as ProgressInfo).method}</span>
                 </div>
               )}
               
-              {(conversion.progressInfo as ProgressInfo).extractedTextLength && (
+              {(currentConversion.progressInfo as ProgressInfo).extractedTextLength && (
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">Text Extracted:</span>
-                  <span className="font-medium text-foreground">{(conversion.progressInfo as ProgressInfo).extractedTextLength?.toLocaleString()} chars</span>
+                  <span className="font-medium text-foreground">{(currentConversion.progressInfo as ProgressInfo).extractedTextLength?.toLocaleString()} chars</span>
                 </div>
               )}
               
-              {(conversion.progressInfo as ProgressInfo).markdownLength && (
+              {(currentConversion.progressInfo as ProgressInfo).markdownLength && (
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">Markdown Generated:</span>
-                  <span className="font-medium text-foreground">{(conversion.progressInfo as ProgressInfo).markdownLength?.toLocaleString()} chars</span>
+                  <span className="font-medium text-foreground">{(currentConversion.progressInfo as ProgressInfo).markdownLength?.toLocaleString()} chars</span>
                 </div>
               )}
             </div>
