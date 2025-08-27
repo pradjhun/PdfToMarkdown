@@ -5,7 +5,7 @@ import os
 import PyPDF2
 import pdfplumber
 import re
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 def extract_text_pypdf2(pdf_path: str) -> str:
     """Extract text using PyPDF2 - good for text-based PDFs."""
@@ -23,18 +23,80 @@ def extract_text_pypdf2(pdf_path: str) -> str:
     return text
 
 def extract_text_pdfplumber(pdf_path: str) -> str:
-    """Extract text using pdfplumber - better for complex layouts."""
+    """Extract text and tables using pdfplumber - better for complex layouts."""
     text = ""
     try:
         with pdfplumber.open(pdf_path) as pdf:
             for page_num, page in enumerate(pdf.pages):
+                text += f"\n<!-- Page {page_num + 1} -->\n"
+                
+                # Extract tables first
+                tables = page.extract_tables()
+                if tables:
+                    print(f"Extracting {len(tables)} table(s) from page {page_num + 1}", file=sys.stderr)
+                    for table_num, table in enumerate(tables):
+                        if table and len(table) > 0:
+                            markdown_table = convert_table_to_markdown(table)
+                            text += f"\n{markdown_table}\n\n"
+                            print(f"Converted table {table_num + 1} with {len(table)} rows and {len(table[0]) if table else 0} columns", file=sys.stderr)
+                
+                # Extract remaining text (excluding table areas)
                 page_text = page.extract_text()
                 if page_text:
-                    text += f"\n<!-- Page {page_num + 1} -->\n"
                     text += page_text + "\n"
+                    
     except Exception as e:
         raise Exception(f"pdfplumber extraction failed: {str(e)}")
     return text
+
+def convert_table_to_markdown(table: List[List[Optional[str]]]) -> str:
+    """Convert a table array to markdown table format."""
+    if not table or len(table) == 0:
+        return ""
+    
+    # Clean and prepare table data
+    cleaned_table = []
+    for row in table:
+        cleaned_row = []
+        for cell in row:
+            if cell is None:
+                cleaned_row.append("")
+            else:
+                # Clean cell content - remove newlines and extra spaces
+                cleaned_cell = str(cell).replace('\n', ' ').replace('\r', ' ').strip()
+                cleaned_cell = re.sub(r'\s+', ' ', cleaned_cell)
+                cleaned_row.append(cleaned_cell)
+        cleaned_table.append(cleaned_row)
+    
+    if len(cleaned_table) == 0:
+        return ""
+    
+    # Determine column count
+    max_cols = max(len(row) for row in cleaned_table)
+    
+    # Pad rows to have same number of columns
+    for row in cleaned_table:
+        while len(row) < max_cols:
+            row.append("")
+    
+    # Build markdown table
+    markdown_lines = []
+    
+    # Add header row (first row)
+    if len(cleaned_table) > 0:
+        header_row = "| " + " | ".join(cleaned_table[0]) + " |"
+        markdown_lines.append(header_row)
+        
+        # Add separator row
+        separator = "| " + " | ".join(["---"] * max_cols) + " |"
+        markdown_lines.append(separator)
+        
+        # Add data rows
+        for row in cleaned_table[1:]:
+            data_row = "| " + " | ".join(row) + " |"
+            markdown_lines.append(data_row)
+    
+    return "\n".join(markdown_lines)
 
 def clean_text(text: str) -> str:
     """Clean and normalize extracted text."""
