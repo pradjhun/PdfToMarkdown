@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import sys
 import json
+import os
 import PyPDF2
 import pdfplumber
 import re
@@ -139,39 +140,60 @@ def main():
     settings_json = sys.argv[2]
     
     try:
+        print(f"Starting PDF conversion for: {pdf_path}", file=sys.stderr)
         settings = json.loads(settings_json)
-    except json.JSONDecodeError:
-        print("Invalid settings JSON", file=sys.stderr)
+        print(f"Settings: {settings}", file=sys.stderr)
+    except json.JSONDecodeError as e:
+        print(f"Invalid settings JSON: {e}", file=sys.stderr)
         sys.exit(1)
     
     try:
+        # Check if file exists
+        if not os.path.exists(pdf_path):
+            raise Exception(f"PDF file not found: {pdf_path}")
+        
+        print(f"File exists, size: {os.path.getsize(pdf_path)} bytes", file=sys.stderr)
+        
         # Choose extraction method based on settings
         extraction_method = settings.get('extractionMethod', 'auto')
+        print(f"Using extraction method: {extraction_method}", file=sys.stderr)
         
         if extraction_method == 'auto':
             # Try pdfplumber first, fallback to PyPDF2
             try:
+                print("Trying pdfplumber extraction...", file=sys.stderr)
                 text = extract_text_pdfplumber(pdf_path)
                 if not text.strip():
+                    print("pdfplumber returned empty, trying PyPDF2...", file=sys.stderr)
                     text = extract_text_pypdf2(pdf_path)
-            except:
+            except Exception as e:
+                print(f"pdfplumber failed: {e}, trying PyPDF2...", file=sys.stderr)
                 text = extract_text_pypdf2(pdf_path)
         elif extraction_method == 'text-only':
+            print("Using PyPDF2 extraction...", file=sys.stderr)
             text = extract_text_pypdf2(pdf_path)
         else:  # pdfplumber for OCR and complex layouts
+            print("Using pdfplumber extraction...", file=sys.stderr)
             text = extract_text_pdfplumber(pdf_path)
         
         if not text.strip():
             raise Exception("No text could be extracted from the PDF")
         
+        print(f"Extracted text length: {len(text)} characters", file=sys.stderr)
+        
         # Clean the extracted text
+        print("Cleaning extracted text...", file=sys.stderr)
         text = clean_text(text)
         
         # Convert to markdown
+        print("Converting to markdown...", file=sys.stderr)
         markdown = convert_to_markdown(text, settings)
+        
+        print(f"Generated markdown length: {len(markdown)} characters", file=sys.stderr)
         
         # Output the markdown
         print(markdown)
+        print("Conversion completed successfully", file=sys.stderr)
         
     except Exception as e:
         print(f"Conversion error: {str(e)}", file=sys.stderr)

@@ -101,6 +101,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 async function processConversion(conversionId: string, filePath: string, settings: any) {
   try {
+    console.log(`Starting conversion for ${conversionId} with file ${filePath}`);
     await storage.updateConversion(conversionId, { status: "processing" });
 
     const pythonScript = path.join(process.cwd(), "server", "convert_pdf.py");
@@ -108,37 +109,66 @@ async function processConversion(conversionId: string, filePath: string, setting
 
     let output = "";
     let error = "";
+    let isProcessed = false;
+
+    // Set a timeout to prevent hanging
+    const timeout = setTimeout(async () => {
+      if (!isProcessed) {
+        console.log(`Conversion timeout for ${conversionId}`);
+        python.kill();
+        await storage.updateConversion(conversionId, {
+          status: "error",
+          errorMessage: "Conversion timed out after 120 seconds",
+        });
+        isProcessed = true;
+      }
+    }, 120000); // 2 minutes timeout
 
     python.stdout.on("data", (data) => {
       output += data.toString();
+      console.log(`Python stdout: ${data.toString().substring(0, 100)}...`);
     });
 
     python.stderr.on("data", (data) => {
       error += data.toString();
+      console.error(`Python stderr: ${data.toString()}`);
     });
 
     python.on("close", async (code) => {
+      if (isProcessed) return; // Already handled by timeout
+      isProcessed = true;
+      clearTimeout(timeout);
+
+      console.log(`Python process closed with code ${code} for ${conversionId}`);
+      
       // Clean up uploaded file
       try {
         fs.unlinkSync(filePath);
+        console.log(`Cleaned up file: ${filePath}`);
       } catch (e) {
         console.error("Error cleaning up file:", e);
       }
 
-      if (code === 0) {
+      if (code === 0 && output.trim()) {
+        console.log(`Conversion successful for ${conversionId}, output length: ${output.length}`);
         await storage.updateConversion(conversionId, {
           status: "completed",
           markdownContent: output,
         });
       } else {
+        console.error(`Conversion failed for ${conversionId}, code: ${code}, error: ${error}`);
         await storage.updateConversion(conversionId, {
           status: "error",
-          errorMessage: error || "Conversion failed with unknown error",
+          errorMessage: error || `Conversion failed with exit code ${code}`,
         });
       }
     });
 
     python.on("error", async (err) => {
+      if (isProcessed) return;
+      isProcessed = true;
+      clearTimeout(timeout);
+      
       console.error("Python process error:", err);
       await storage.updateConversion(conversionId, {
         status: "error",
