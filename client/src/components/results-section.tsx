@@ -13,7 +13,6 @@ export default function ResultsSection({ conversionId }: ResultsSectionProps) {
   
   const { data: conversion, isLoading } = useQuery<Conversion>({
     queryKey: ["/api/conversions", conversionId],
-    refetchInterval: conversion?.status === "processing" ? 1000 : false,
     enabled: !!conversionId,
   });
 

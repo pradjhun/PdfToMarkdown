@@ -8,8 +8,13 @@ interface StatusSectionProps {
 export default function StatusSection({ conversionId }: StatusSectionProps) {
   const { data: conversion, isLoading } = useQuery<Conversion>({
     queryKey: ["/api/conversions", conversionId],
-    refetchInterval: conversion?.status === "processing" ? 1000 : false,
     enabled: !!conversionId,
+  });
+
+  const { refetch } = useQuery<Conversion>({
+    queryKey: ["/api/conversions", conversionId, "poll"],
+    refetchInterval: conversion?.status === "processing" ? 1000 : false,
+    enabled: !!conversionId && conversion?.status === "processing",
   });
 
   if (isLoading || !conversion) {

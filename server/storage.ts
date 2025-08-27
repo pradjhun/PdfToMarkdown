@@ -44,7 +44,12 @@ export class MemStorage implements IStorage {
     const now = new Date();
     const conversion: Conversion = {
       id,
-      ...insertConversion,
+      filename: insertConversion.filename,
+      originalSize: insertConversion.originalSize,
+      status: insertConversion.status as "pending" | "processing" | "completed" | "error",
+      settings: insertConversion.settings || null,
+      markdownContent: insertConversion.markdownContent || null,
+      errorMessage: insertConversion.errorMessage || null,
       createdAt: now,
       updatedAt: now,
     };
@@ -71,7 +76,7 @@ export class MemStorage implements IStorage {
 
   async getConversions(): Promise<Conversion[]> {
     return Array.from(this.conversions.values()).sort(
-      (a, b) => b.createdAt.getTime() - a.createdAt.getTime()
+      (a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0)
     );
   }
 }
