@@ -43,8 +43,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         progressInfo: { currentStep: "Initializing", method: "pending" },
       });
 
-      // Start conversion process
-      processConversion(conversion.id, req.file.path, validatedSettings);
+      // Start conversion process asynchronously
+      setImmediate(() => {
+        processConversion(conversion.id, req.file.path, validatedSettings).catch(error => {
+          console.error(`Error in processConversion for ${conversion.id}:`, error);
+          storage.updateConversion(conversion.id, {
+            status: "error",
+            errorMessage: `Processing failed: ${error.message}`
+          });
+        });
+      });
 
       res.json(conversion);
     } catch (error) {
