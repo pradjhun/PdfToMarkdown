@@ -102,7 +102,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 async function processConversion(conversionId: string, filePath: string, settings: any) {
   try {
-    console.log(`Starting conversion for ${conversionId} with file ${filePath}`);
+    console.log(`=== STARTING CONVERSION FOR ${conversionId} ===`);
+    console.log(`File path: ${filePath}`);
+    console.log(`File exists: ${fs.existsSync(filePath)}`);
+    if (fs.existsSync(filePath)) {
+      const stats = fs.statSync(filePath);
+      console.log(`File size: ${stats.size} bytes`);
+    }
+    console.log(`Settings:`, JSON.stringify(settings));
+    
     await storage.updateConversion(conversionId, { status: "processing" });
 
     const pythonScript = path.join(process.cwd(), "server", "convert_pdf.py");
