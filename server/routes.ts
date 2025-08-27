@@ -75,6 +75,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Poll endpoint for real-time updates
+  app.get("/api/conversions/:id/poll", async (req, res) => {
+    try {
+      const conversion = await storage.getConversion(req.params.id);
+      if (!conversion) {
+        return res.status(404).json({ message: "Conversion not found" });
+      }
+      res.json(conversion);
+    } catch (error) {
+      console.error("Error fetching conversion for polling:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   // Download markdown file
   app.get("/api/conversions/:id/download", async (req, res) => {
     try {
