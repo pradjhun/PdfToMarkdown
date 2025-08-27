@@ -130,7 +130,7 @@ async function processConversion(conversionId: string, filePath: string, setting
       console.log(`Python stdout: ${data.toString().substring(0, 100)}...`);
     });
 
-    python.stderr.on("data", (data) => {
+    python.stderr.on("data", async (data) => {
       error += data.toString();
       console.error(`Python stderr: ${data.toString()}`);
       
@@ -142,14 +142,23 @@ async function processConversion(conversionId: string, filePath: string, setting
       const stepMatch = data.toString().match(/(Starting|Trying|Using|Cleaning|Converting|Conversion completed)/);
       
       if (progressMatch || libraryMatch || lengthMatch || markdownMatch || stepMatch) {
-        const progressInfo: any = {};
-        if (stepMatch) progressInfo.currentStep = stepMatch[1];
-        if (libraryMatch) progressInfo.library = libraryMatch[1];
-        if (progressMatch) progressInfo.method = progressMatch[1];
-        if (lengthMatch) progressInfo.extractedTextLength = parseInt(lengthMatch[1]);
-        if (markdownMatch) progressInfo.markdownLength = parseInt(markdownMatch[1]);
-        
-        storage.updateConversion(conversionId, { progressInfo });
+        try {
+          // Get current progress info and update it
+          const current = await storage.getConversion(conversionId);
+          const currentProgress = (current?.progressInfo as any) || {};
+          
+          const progressInfo: any = { ...currentProgress };
+          if (stepMatch) progressInfo.currentStep = stepMatch[1];
+          if (libraryMatch) progressInfo.library = libraryMatch[1];
+          if (progressMatch) progressInfo.method = progressMatch[1];
+          if (lengthMatch) progressInfo.extractedTextLength = parseInt(lengthMatch[1]);
+          if (markdownMatch) progressInfo.markdownLength = parseInt(markdownMatch[1]);
+          
+          console.log(`Updating progress for ${conversionId}:`, progressInfo);
+          await storage.updateConversion(conversionId, { progressInfo });
+        } catch (e) {
+          console.error("Error updating progress:", e);
+        }
       }
     });
 
@@ -159,6 +168,7 @@ async function processConversion(conversionId: string, filePath: string, setting
       clearTimeout(timeout);
 
       console.log(`Python process closed with code ${code} for ${conversionId}`);
+      console.log(`Output length: ${output.length}, Error length: ${error.length}`);
       
       // Clean up uploaded file
       try {
@@ -170,9 +180,20 @@ async function processConversion(conversionId: string, filePath: string, setting
 
       if (code === 0 && output.trim()) {
         console.log(`Conversion successful for ${conversionId}, output length: ${output.length}`);
+        
+        // Get current progress and update with final status
+        const current = await storage.getConversion(conversionId);
+        const currentProgress = (current?.progressInfo as any) || {};
+        const finalProgress = { 
+          ...currentProgress, 
+          currentStep: "Completed",
+          library: currentProgress.library || "pdfplumber" 
+        };
+        
         await storage.updateConversion(conversionId, {
           status: "completed",
           markdownContent: output,
+          progressInfo: finalProgress,
         });
       } else {
         console.error(`Conversion failed for ${conversionId}, code: ${code}, error: ${error}`);
